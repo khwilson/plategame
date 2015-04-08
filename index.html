@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!-- Load the Paper.js library -->
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.9.22/paper-full.min.js"></script>
+<script type="text/javascript">
+// Ganked from http://stackoverflow.com/questions/901115/how-can-i-get-query-string-values-in-javascript
+function getParameterByName(name) {
+    name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+        results = regex.exec(location.search);
+    return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+}
+</script>
+
+<!-- Define inlined PaperScript associate it with myCanvas -->
+<script type="text/paperscript" canvas="myCanvas">
+  // Questions of cosmetics
+  var TOP_LEFT = new Point(10, 20);
+  var FLOOR_SIZE = new Size(100, 20);
+  var STEP = new Point(0, FLOOR_SIZE.height);
+
+  var BREAK_COLOR = "red";
+  var NO_BREAK_COLOR = "green";
+
+  var FONT_SIZE = 14;
+
+  // Get the query arguments: The number of floors and the number of plates
+  var NUM_FLOORS = getParameterByName('floors')
+  NUM_FLOORS = NUM_FLOORS == "" ? 30 : parseInt(NUM_FLOORS);
+  var NUM_PLATES = getParameterByName('plates')
+  NUM_PLATES = NUM_PLATES == "" ? NUM_FLOORS : parseInt(NUM_PLATES);
+  var BREAK_FLOOR = Math.ceil(Math.random() * NUM_FLOORS);
+
+  // Win/lose flags to stop people from continuing
+  var hasWon = false;
+  var hasLost = false;
+
+  // The place where we'll keep all the floor paths
+  var floors = [];
+
+  // How many plates and how many drops?
+  var remainingPlates = NUM_PLATES;
+  var numDrops = 0;
+
+  // Setup game status text
+  var plateText = new PointText(new Point(TOP_LEFT.x + FLOOR_SIZE.width + 20, TOP_LEFT.y + 40));
+  plateText.fontSize = 24;
+  plateText.fillColor = "black";
+  plateText.justification = "left";
+  plateText.content = "Remaining plates: ";
+
+  var remainingPlatesText = new PointText(plateText.position + new Point(0, 60));
+  remainingPlatesText.justification = "center";
+  remainingPlatesText.fillColor = "black";
+  remainingPlatesText.fontSize = 48;
+  remainingPlatesText.content = remainingPlates;
+
+  var dropsTextPosition = new Point(plateText.bounds.left,
+                                    remainingPlatesText.bounds.bottom + 60);
+  var dropsText = new PointText(dropsTextPosition);
+  dropsText.fontSize = 24;
+  dropsText.fillColor = "black";
+  dropsText.justification = "left";
+  dropsText.content = "Number of drops used: ";
+
+  var numDropsText = new PointText(dropsText.position + new Point(0, 60));
+  numDropsText.justification = "center";
+  numDropsText.fillColor = "black";
+  numDropsText.fontSize = 48;
+  numDropsText.content = numDrops;
+
+  // Place the floors, starting from this position
+  var rectTopLeft = TOP_LEFT;
+  var textCenter = new Point(TOP_LEFT.x, TOP_LEFT.y);
+  textCenter.x += FLOOR_SIZE.width / 2;
+  textCenter.y += FLOOR_SIZE.height - (FLOOR_SIZE.height - FONT_SIZE) / 2;
+
+  // Loop to place the floors
+  for (var i = 0; i < NUM_FLOORS; ++i) {
+    // The basic facts of the floor
+    var rect = new Rectangle(rectTopLeft, FLOOR_SIZE);
+    var path = new Path.Rectangle(rect);
+    path.strokeColor = "black";
+    path.fillColor = "white";
+
+    // What happens when you click?
+    // We have to construct a closure so that the floor can identify itself
+    path.onClick = (function() {
+      var myI = i;
+      var myFloor = NUM_FLOORS - myI;
+      return function(event) {
+        if (hasLost) {
+          alert("You already lost!");
+          return;
+        }
+
+        if (hasWon) {
+          alert("You've already won!");
+          return;
+        }
+        numDrops += 1;
+        numDropsText.content = numDrops;
+
+        if (myFloor == BREAK_FLOOR) {
+          if (myFloor == 1 || floors[myI + 1].fillColor == NO_BREAK_COLOR) {
+            floors[myI].fillColor = BREAK_COLOR;
+            remainingPlates--;
+            remainingPlatesText.content = remainingPlates;
+            alert("You win! And did it in " + numDrops + " drops.");
+            hasWon = true;
+            return;
+          }
+        }
+
+        if (myFloor >= BREAK_FLOOR) {
+          // It broke!
+          remainingPlates -= 1;
+          remainingPlatesText.content = remainingPlates;
+          if (remainingPlates == 0) {
+            alert("You lose! The correct floor was " + BREAK_FLOOR);
+            hasLost = true;
+            return;
+          }
+          for (var j = myI; j >= 0; --j) {
+            floors[j].fillColor = BREAK_COLOR;
+          }
+        } else {
+          // It didn't break
+          for (var j = myI; j < NUM_FLOORS; ++j) {
+            floors[j].fillColor = NO_BREAK_COLOR;
+          }
+        }
+      };
+    })();
+
+    floors.push(path);
+
+    var text = new PointText(textCenter);
+    text.justification = 'center';
+    text.fillColor = 'black';
+    text.fontSize = 14;
+    text.content = NUM_FLOORS - i;
+
+    rectTopLeft += STEP;
+    textCenter += STEP;
+  }
+</script>
+</head>
+<body>
+  <h1>Where does the plate break?</h1>
+  <p>You've just made a new super strong material that shouldn't break when you drop it from a very
+     high height. But just how high? You decide to figure out by dropping a plate from various
+     stories of a building.</p>
+
+  <p>But making plates is potentially expensive, so your boss has limited the number of plates you
+     can try dropping. But you also don't want to be dropping plates from a building all day long.
+     So how can you figure out which floor the plate first breaks on the fastest without running
+     out of plates?</p>
+
+  <p>Click on a floor. If it turns green, then the plate didn't break. And we can assume that the
+     plate won't break if it is dropped from a lower floor. So all those floors will turn green
+     too.</p>
+
+  <p>However, if the floor turns red, then the plate broke. And we can assume that the plate would
+     break if dropped from any higher floor. So all those floors turn red too.</p>
+
+  <p>To win, you must <b>prove</b> that a particular floor is the first one from which the plate
+     breaks. So you must (1) drop a plate from that floor, <b>and</b> (2) drop a plate from the
+     floor immediately below.</p>
+
+  <p>Good luck!</p>
+
+    <canvas id="myCanvas" height="700" width="400"></canvas>
+</body>
+</html>
