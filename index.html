@@ -145,6 +145,10 @@ function getParameterByName(name) {
     rectTopLeft += STEP;
     textCenter += STEP;
   }
+
+  // Resize canvas to appropriate height
+  view.viewSize.height = textCenter.y + FONT_SIZE;
+
 </script>
 </head>
 <body>
